@@ -1,5 +1,9 @@
 name: Publish Package to GitHub Packages (commit)
 
+on:
+  push:
+  pull_request:
+
 jobs:
   publish:
     runs-on: ubuntu-latest
