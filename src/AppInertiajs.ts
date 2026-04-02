@@ -5,7 +5,7 @@ import { pathToFileURL } from "node:url";
 import React from "react";
 import { renderToString } from "react-dom/server";
 import serveStatic from "serve-static";
-import type { Request, Response } from "express";
+import type { NextFunction, Request, Response } from "express";
 import type { ViteDevServer } from "vite";
 import type { Server as HttpServer } from "node:http";
 import {
@@ -364,7 +364,7 @@ export abstract class AppInertiajs extends AbstractApp {
 
     if (!this.viteMiddlewareBound) {
       this.viteMiddlewareBound = true;
-      this.appManager.app.use((req, res, next) => {
+      this.appManager.app.use((req: Request, res: Response, next: NextFunction) => {
         if (this.isViteAssetRequest(req.url)) {
           this.viteServer?.middlewares(req, res, next);
           return;
