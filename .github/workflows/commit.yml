@@ -1,0 +1,60 @@
+name: Publish Package to GitHub Packages (commit)
+
+on:
+  push:
+    branches-ignore:
+      - master
+      - next
+      - alpha
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build package
+        run: npm run build
+
+      - name: Prepare package contents
+        run: npm run package:prepare
+
+      - name: Configure GitHub Packages auth
+        run: |
+          cat <<'EOF' > "$RUNNER_TEMP/github-packages.npmrc"
+          @nodeknit:registry=https://npm.pkg.github.com
+          //npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}
+          always-auth=true
+          EOF
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve publish version
+        run: npm run package:version
+        env:
+          PACKAGE_CHANNEL: commit
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_CONFIG_USERCONFIG: ${{ runner.temp }}/github-packages.npmrc
+
+      - name: Publish package
+        run: npm publish --tag commit
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_CONFIG_USERCONFIG: ${{ runner.temp }}/github-packages.npmrc
+        working-directory: ./dist
