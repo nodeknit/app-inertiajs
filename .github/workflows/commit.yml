@@ -17,28 +17,27 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
-          cache-dependency-path: package-lock.json
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@nodeknit'
+          always-auth: true
 
       - name: Install dependencies
         run: npm install
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run tests
         run: npm test
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build package
         run: npm run build
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Prepare package contents
         run: npm run package:prepare
-
-      - name: Configure GitHub Packages auth
-        run: |
-          cat <<'EOF' > "$RUNNER_TEMP/github-packages.npmrc"
-          @nodeknit:registry=https://npm.pkg.github.com
-          //npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}
-          always-auth=true
-          EOF
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -47,11 +46,9 @@ jobs:
         env:
           PACKAGE_CHANNEL: commit
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_CONFIG_USERCONFIG: ${{ runner.temp }}/github-packages.npmrc
 
       - name: Publish package
         run: npm publish --tag commit
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_CONFIG_USERCONFIG: ${{ runner.temp }}/github-packages.npmrc
         working-directory: ./dist
