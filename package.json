@@ -12,7 +12,7 @@
     "package:version": "node ./scripts/version-package.mjs"
   },
   "peerDependencies": {
-    "@nodeknit/app-manager": "^1.0.0",
+    "@nodeknit/app-manager": "*",
     "express": "^4.21.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
