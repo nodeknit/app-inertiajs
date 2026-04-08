@@ -207,7 +207,7 @@ async function resolveSsrRenderer(
   viteConfig: InertiaViteConfig,
   viteServer?: ViteDevServer
 ): Promise<SsrRenderer> {
-  if (viteServer && process.env.VITE_ENV === "dev") {
+  if (viteServer) {
     const loadedModule = (await viteServer.ssrLoadModule(viteConfig.ssrEntry)) as {
       default?: SsrRenderer;
       render?: SsrRenderer;
@@ -233,7 +233,7 @@ async function renderVitePage(
   const result = await renderer(page);
   const assetsUrlPrefix = viteConfig.assetsUrlPrefix ?? "/frontend-assets";
   const assetTags =
-    viteServer && process.env.VITE_ENV === "dev"
+    viteServer
       ? renderViteDevTags(
           viteConfig.devClientEntry ?? viteConfig.clientEntry,
           assetsUrlPrefix
