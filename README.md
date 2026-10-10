@@ -59,6 +59,22 @@ Each page definition supports:
 - `props`: static object or async resolver
 - `title`: static title or resolver
 - `status`: optional HTTP status code
+- `lang`: optional `<html lang>` for this page
+
+The app itself has `htmlLang` — the `<html lang>` of every page it renders unless a page sets
+`lang`. It defaults to `"ru"`, which is what the attribute was before it became configurable:
+
+```ts
+export default class AppSite extends AppInertiajs {
+  htmlLang = "en";
+}
+```
+
+## Errors
+
+If a props resolver or the render throws, the error and its stack are written to
+`AppManager.log` and the visitor gets a plain `500 Internal Server Error`. The stack is shown in
+the response only with `VITE_ENV=dev`, i.e. when the Vite dev server is attached.
 
 ## Example
 

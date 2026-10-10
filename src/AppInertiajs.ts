@@ -59,6 +59,8 @@ export type InertiaPageDefinition = {
     | ((req: Request, appManager: AppManager) => InertiaPageProps | Promise<InertiaPageProps>);
   title?: string | ((props: InertiaPageProps) => string);
   status?: number;
+  /** `<html lang>` for this page; overrides the app's `htmlLang`. */
+  lang?: string;
 };
 
 type ManifestEntry = {
@@ -152,6 +154,7 @@ function renderViteDevTags(clientEntry: string, assetsUrlPrefix: string): string
 
 function renderDocument(options: {
   title: string;
+  lang: string;
   page: InertiaSerializedPage;
   appHtml: string;
   head?: string[];
@@ -170,7 +173,7 @@ function renderDocument(options: {
 
   return [
     "<!DOCTYPE html>",
-    '<html lang="ru">',
+    `<html lang="${escapeHtml(options.lang)}">`,
     "<head>",
     '  <meta charSet="utf-8" />',
     '  <meta name="viewport" content="width=device-width, initial-scale=1" />',
@@ -226,6 +229,7 @@ async function resolveSsrRenderer(
 async function renderVitePage(
   page: InertiaSerializedPage,
   title: string,
+  lang: string,
   viteConfig: InertiaViteConfig,
   viteServer?: ViteDevServer
 ): Promise<string> {
@@ -246,6 +250,7 @@ async function renderVitePage(
 
   return renderDocument({
     title,
+    lang,
     page,
     appHtml: result.html,
     head: result.head,
@@ -259,44 +264,63 @@ class InertiaPageHandler {
 
   async process(appManager: AppManager, data: LocalCollectionItem[]): Promise<void> {
     for (const collectionItem of data) {
-      const { route, component, props, title, status } = collectionItem.item;
+      const { route, component, props, title, status, lang } = collectionItem.item;
 
       appManager.app.get(route, async (req: Request, res: Response) => {
-        const resolvedProps =
-          typeof props === "function"
-            ? await props(req, appManager)
-            : (props ?? {});
-
-        const pageTitle =
-          typeof title === "function"
-            ? title(resolvedProps)
-            : (title ?? (typeof component === "string" ? component : component.name) ?? "SSR Page");
-
-        const page: InertiaSerializedPage = {
-          component: typeof component === "string" ? component : component.name || "AnonymousPage",
-          props: resolvedProps,
-          url: req.originalUrl || req.url,
-          version: this.frontendApp.inertiaVite?.version ?? "1",
-        };
-
+        // Props resolvers run inside the try as well: a failing database query is as much a render
+        // error as a failing component, and must not reach the client as an unhandled rejection.
         try {
+          const resolvedProps =
+            typeof props === "function"
+              ? await props(req, appManager)
+              : (props ?? {});
+
+          const pageTitle =
+            typeof title === "function"
+              ? title(resolvedProps)
+              : (title ?? (typeof component === "string" ? component : component.name) ?? "SSR Page");
+
+          const pageLang = lang ?? this.frontendApp.htmlLang;
+
+          const page: InertiaSerializedPage = {
+            component: typeof component === "string" ? component : component.name || "AnonymousPage",
+            props: resolvedProps,
+            url: req.originalUrl || req.url,
+            version: this.frontendApp.inertiaVite?.version ?? "1",
+          };
+
           const document =
             this.frontendApp.inertiaVite && typeof component === "string"
               ? await renderVitePage(
                   page,
                   pageTitle,
+                  pageLang,
                   this.frontendApp.inertiaVite,
                   this.frontendApp.viteServer
                 )
               : renderDocument({
                   title: pageTitle,
+                  lang: pageLang,
                   page,
                   appHtml: renderToString(React.createElement(component, resolvedProps)),
                 });
 
           res.status(status ?? 200).type("html").send(document);
         } catch (error) {
-          res.status(500).type("text").send(String(error instanceof Error ? error.stack : error));
+          // The stack goes to the log, never to the visitor: it names files, paths and sometimes
+          // values from the failed query. Only the Vite dev server (VITE_ENV=dev) shows it inline.
+          AppManager.log.error(
+            `[${this.frontendApp.appId}] render of ${req.method} ${req.originalUrl || req.url} failed\n` +
+              String(error instanceof Error ? error.stack : error)
+          );
+          if (res.headersSent) {
+            return;
+          }
+          const detail =
+            process.env.VITE_ENV === "dev"
+              ? String(error instanceof Error ? error.stack : error)
+              : "Internal Server Error";
+          res.status(500).type("text").send(detail);
         }
       });
     }
@@ -315,6 +339,11 @@ class InertiaPageHandler {
 
 export abstract class AppInertiajs extends AbstractApp {
   inertiaVite?: InertiaViteConfig;
+  /**
+   * `<html lang>` of every page this app renders; a page definition's `lang` overrides it.
+   * Defaults to "ru", which is what the attribute was hard-coded to before it was configurable.
+   */
+  htmlLang = "ru";
   viteServer?: ViteDevServer;
   private viteMiddlewareBound = false;
 
